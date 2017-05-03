@@ -36,15 +36,15 @@ and PPattern =
     | PPtVal of ValPattern
     | PPtDrop of CPattern
     | PPtInject of CPattern
-    | PPtOutput of CPattern * PPattern option
-    | PPtInput of PatternBind option * PPattern
-    | PPtMatch of PPattern * PatternMatchBranchPattern option
-    | PPtNew of VarPattern option * PPattern
-    | PPtConstr of Name * PPattern option
-    | PPtPar of PPattern * PPattern
+    | PPtOutput of CPattern * PPattern list
+    | PPtInput of PatternBind list * PPattern
+    | PPtMatch of PPattern * PatternMatchBranchPattern list
+    | PPtNew of VarPattern list * PPattern
+    | PPtConstr of Name * PPattern list
+    | PPtPar of PPattern list
 
 and ValPattern =
-    | VPtStruct of Var * PPattern option
+    | VPtStruct of Var * PPattern list
 
 and Value =
     | VQuant of Quantity
@@ -60,7 +60,7 @@ and Entity =
     | ECollect of Collect
 
 and Struct =
-    | StructConstr of Var * Proc
+    | StructConstr of Var * Proc list
 
 and Proc =
     | PNil
@@ -68,13 +68,13 @@ and Proc =
     | PVar of Var
     | PDrop of Chan
     | PInject of Chan
-    | PLift of Chan * Proc option
-    | PInput of Bind option * Proc
-    | PChoice of CBranch option
-    | PMatch of Proc * PMBranch option
-    | PNew of Var option * Proc
-    | PConstr of Name * Proc option
-    | PPar of Proc * Proc
+    | PLift of Chan * Proc list
+    | PInput of Bind list * Proc
+    | PChoice of CBranch list
+    | PMatch of Proc * PMBranch list
+    | PNew of Var list * Proc
+    | PConstr of Name * Proc list
+    | PPar of Proc list
 
 and Collect =
     | CString of string
@@ -87,13 +87,13 @@ and Chan =
     | CQuote of Proc
 
 and CBranch =
-    | Choice of Bind option * Proc
+    | Choice of Bind list * Proc
 
 and PMBranch =
     | PatternMatch of PPattern * Proc
 
 and Contr =
-    | DContr of Name * CPattern list option * Proc list
+    | DContr of Name * CPattern list * Proc list
 
 [<EntryPoint>]
 let main argv = 
@@ -101,12 +101,16 @@ let main argv =
     let pPPattern, pPPatternRef = createParserForwardedToRef<PPattern, unit>()
     let pPPattern1, pPPattern1Ref = createParserForwardedToRef<PPattern, unit>()
     let pPPattern3, pPPattern3Ref = createParserForwardedToRef<PPattern, unit>()
+    let pPPatternList, pPPatternListRef = createParserForwardedToRef<PPattern list, unit>()
     let pCPattern, pCPatternRef = createParserForwardedToRef<CPattern, unit>()
     let pVarPattern, pVarPatternRef = createParserForwardedToRef<VarPattern, unit>()
+    let pVarPatternList, pVarPatternListRef = createParserForwardedToRef<VarPattern list, unit>()
     let pProc, pProcRef = createParserForwardedToRef<Proc, unit>()
     let pProc1, pProc1Ref = createParserForwardedToRef<Proc, unit>()
     let pProc3, pProc3Ref = createParserForwardedToRef<Proc, unit>()
+    let pProcList, pProcListRef = createParserForwardedToRef<Proc list, unit>()
     let pBind, pBindRef = createParserForwardedToRef<Bind, unit>()
+    let pBindList, pBindListRef = createParserForwardedToRef<Bind list, unit>()
     let pChan, pChanRef = createParserForwardedToRef<Chan, unit>()
 
 
@@ -189,7 +193,6 @@ let main argv =
         (skipString "false" .>> ws) <|>
         (skipString "in" .>> ws)
 
-
     let pVar = 
         // token Var (lower (letter | digit | '_' | '\'')*) ;
         let isVarFirstChar c = isLower c
@@ -198,6 +201,10 @@ let main argv =
         notFollowedBy (pKeyWords) >>.
         (many1Satisfy2L isVarFirstChar isVarChar "Var" .>> ws) |>>
         (fun x -> Var.VarValue(x))
+
+    let pVarList = 
+        // separator nonempty Var "," ;
+        sepBy1 (pVar .>> ws) (skipString "," .>> ws)
 
     let pName = 
         // token Name (upper (letter | digit | '_' | '\'')*) ;
@@ -208,13 +215,17 @@ let main argv =
         (many1Satisfy2L isNameFirstChar isNameChar "Name" .>> ws) |>>
         (fun x -> Name.NameValue(x))
 
+    let pNameList =
+        // separator nonempty Name "," ;
+        sepBy1 (pName .>> ws) (skipString "," .>> ws)
+
     //-- Value patterns
     let pVPtStruct =
         //VPtStruct. ValPattern ::= Var "{" [PPattern] "}" ;
         pipe4 
             (pVar)
             (skipString "{" .>> ws)
-            (opt pPPattern)
+            (pPPatternList .>> ws)
             (skipString "}" .>> ws)
             (fun a b c d -> ValPattern.VPtStruct(a, c))
 
@@ -239,7 +250,7 @@ let main argv =
 
     let pPatternPatternMatchList = 
         //separator nonempty PatternPatternMatch "" ;
-        sepBy (pPatternPatternMatch) ws
+        many (pPatternPatternMatch .>> ws)
 
     //-- Bind pattern
     let pPtBind =
@@ -255,29 +266,29 @@ let main argv =
 
     let pPatternBindList = 
         //separator nonempty PatternBind ";" ;
-        sepBy1 pPatternBind (skipString ";" .>> ws)   
+        sepBy1 (pPatternBind .>> ws) (skipString ";" .>> ws)   
 
     // -- Channel patterns
     let pCPtVar = 
         //CPtVar.    CPattern ::= VarPattern ;
-        pVarPattern |>>
+        (pVarPattern .>> ws) |>>
         (fun x -> CPattern.CPtVar(x))
 
     let pCPtQuote =
         //CPtQuote.  CPattern ::= "@" PPattern3 ;
         pipe2
             (skipString "@")
-            (pPPattern3)
+            (pPPattern3 .>> ws)
             (fun a b -> CPattern.CPtQuote(b))
 
     let pCPatternList =
         //separator CPattern "," ;
-        sepBy1 (pCPattern) (skipString "," .>> ws )
+        sepBy1 (pCPattern .>> ws) (skipString "," .>> ws)
 
     //-- Process patterns
     let pPPtVar =
         //PPtVar.    PPattern4 ::= VarPattern ;
-        pVarPattern |>>
+        (pVarPattern .>> ws) |>>
         (fun x -> PPattern.PPtVar(x))
 
     let pPPtNil =
@@ -287,7 +298,7 @@ let main argv =
 
     let pPPtVal =
         //PPtVal.    PPattern4 ::= ValPattern ;
-        pValPattern |>>
+        (pValPattern .>> ws) |>>
         (fun x -> PPattern.PPtVal(x))
 
     let pPPattern4 =
@@ -295,12 +306,12 @@ let main argv =
 
     let pPPtDrop =
         //PPtDrop.   PPattern3 ::= "*" CPattern ;
-        (pstring "*") >>. pCPattern |>>
+        (skipString "*") >>. (pCPattern .>> ws) |>>
         (fun x -> PPattern.PPtDrop(x))
          
     let pPPtInject =
         //PPtInject. PPattern3 ::= "#" CPattern ;
-        (pstring "#") >>. pCPattern |>>
+        (skipString "#") >>. (pCPattern .>> ws) |>>
         (fun x -> PPattern.PPtInject(x))
 
     let pPPtOutput =
@@ -309,9 +320,9 @@ let main argv =
             pCPattern
             (skipString "!" .>> ws) 
             (between 
-                (skipString "(")
-                (skipString ")")
-                ((opt pPPattern) .>> ws)
+                (skipString "(" .>> ws)
+                (skipString ")" .>> ws)
+                (pPPatternList .>> ws)
             )
             (fun a b c -> PPattern.PPtOutput(a, c))
 
@@ -321,8 +332,16 @@ let main argv =
         //PPtInput.  PPattern1 ::= "for" "(" [PatternBind] ")" "{" PPattern "}" ;
         pipe3
             (skipString "for" .>> ws)
-            (between (skipString "(") (skipString ")") ((opt pPatternBind) .>> ws))
-            (between (skipString "{") (skipString "}") (pPPattern .>> ws))
+            (between 
+                (skipString "(" .>> ws) 
+                (skipString ")" .>> ws) 
+                (pPatternBindList .>> ws)
+            )
+            (between 
+                (skipString "{" .>> ws)
+                (skipString "}" .>> ws) 
+                (pPPattern .>> ws)
+            )
             (fun a b c -> PPattern.PPtInput(b, c))
 
     let pPPtMatch =
@@ -331,16 +350,16 @@ let main argv =
             (skipString "match" .>> ws)
             (pPPattern .>> ws)
             (skipString "with" .>> ws)
-            ((opt pPatternPatternMatch) .>> ws)
+            (pPatternPatternMatchList .>> ws)
             (fun a b c d -> PPattern.PPtMatch(b, d))
 
     let pPPtNew =
         //PPtNew.    PPattern1 ::= "new" [VarPattern] "in" PPattern1 ;
         pipe4
             (skipString "new" .>> ws)
-            (opt pVarPattern .>> ws)
+            (pVarPatternList .>> ws)
             (skipString "in" .>> ws)
-            (pPPattern1)
+            (pPPattern1 .>> ws)
             (fun a b c d -> PPattern.PPtNew(b, d))
 
     let pPPtConstr =
@@ -348,29 +367,26 @@ let main argv =
         pipe2
             pName
             (between 
-                (pstring "(") 
-                (pstring ")") 
-                ((opt pPPattern) .>> ws)
+                (skipString "(" .>> ws) 
+                (skipString ")" .>> ws) 
+                (pPPatternList .>> ws)
             )
             (fun a b -> PPattern.PPtConstr(a, b))
 
     let pPPtPar =
         //PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
-        pipe3
-            (pPPattern)
-            ((skipString "|") .>> ws)
-            (pPPattern1)
-            (fun a b c -> PPattern.PPtPar(a, c))
+        sepBy1 (pPPattern .>> ws) (skipString "|" .>> ws) |>>
+        (fun x -> PPattern.PPtPar(x))
 
     let pPPatternList =
         //separator PPattern "," ;
+        //coercions PPattern 4 ;
         sepBy1 (pPPattern) (skipString "," .>> ws)
-    //coercions PPattern 4 ;
 
     // -- Variable patterns
     let pVarPtVar =
         // VarPtVar.  VarPattern ::= Var ;
-        pVar |>>
+        (pVar .>> ws) |>>
         (fun x -> VarPattern.VarPtVar(x))
 
     let pVarPtWild =
@@ -380,15 +396,16 @@ let main argv =
 
     let pVarPatternList() =
         // separator VarPattern "," ;
-        sepBy (pVarPattern) (pchar ',' .>> ws)
+        sepBy (pVarPattern .>>ws) (skipString "," .>> ws)
 
     //-- Values
-    let pCString =
-        //CString. Collect ::= String ;
-        pStringLiteral |>>
-        (fun x -> Collect.CString(x))
     //-- CArray.  Collect ::= Array ;
     //-- CList.   Collect ::= List ;
+
+    let pCString =
+        //CString. Collect ::= String ;
+        (pStringLiteral .>> ws) |>>
+        (fun x -> Collect.CString(x))
 
     let pCollect = 
         pCString  // eventually CArray and CList too
@@ -400,7 +417,7 @@ let main argv =
             (between 
                 (skipString "{" .>> ws)
                 (skipString "}" .>> ws)
-                (pProc .>> ws)
+                (pProcList .>> ws)
             )
             (fun a b -> Struct.StructConstr(a, b))
 
@@ -409,19 +426,19 @@ let main argv =
 
     let pEChar =
         //EChar.    Entity   ::= Char ;
-        pCharLiteral |>>
+        (pCharLiteral .>> ws) |>>
         (fun x -> Entity.EChar(x)) 
 
     //-- EDate.    Entity   ::= Datetime ;
     
     let pEStruct =
         //EStruct.  Entity   ::= Struct ;
-        pStruct |>>
+        (pStruct .>> ws) |>>
         (fun x -> Entity.EStruct(x))
     
     let pECollect =
         //ECollect. Entity   ::= Collect ;
-        pCollect |>>
+        (pCollect .>> ws) |>>
         (fun x -> Entity.ECollect(x))
 
     let pEntity =
@@ -431,12 +448,12 @@ let main argv =
     
     let pQInt =
         //QInt.     Quantity ::= Integer ;
-        pIntegerLiteral |>>
+        (pIntegerLiteral .>> ws) |>>
         (fun x -> Quantity.QInt(x))
 
     let pQDouble =
         //QDouble.  Quantity ::= Double ;
-        pDoubleLiteral |>>
+        (pDoubleLiteral .>> ws) |>>
         (fun x -> Quantity.QDouble(x))
 
     let pQuantity =
@@ -444,12 +461,12 @@ let main argv =
 
     let pVQuant =
            //VQuant.   Value    ::= Quantity ;
-           pQuantity |>>
+           (pQuantity .>> ws) |>>
            (fun x -> Value.VQuant(x))
 
     let pVEnt =
         //VEnt.     Value    ::= Entity ;
-        pEntity |>>
+        (pEntity .>> ws) |>>
         (fun x -> Value.VEnt(x))
 
     let pValue =
@@ -460,7 +477,7 @@ let main argv =
         //Choice. CBranch ::= "case" [Bind] "=>" "{" Proc "}" ;
         pipe4
             (skipString "case" .>> ws)
-            (opt pBind)
+            (pBindList .>> ws)
             (skipString "=>" .>> ws)
             (between
                 (skipString "{" .>> ws)
@@ -472,7 +489,7 @@ let main argv =
     let pCBranch = 
         pChoice
 
-    let pChoiceList =
+    let pCBranchList =
         //separator nonempty CBranch "" ;
         many pCBranch
 
@@ -480,7 +497,7 @@ let main argv =
     let pPatternMatch =
         //PatternMatch. PMBranch ::= PPattern "=>" "{" Proc "}" ;
         pipe3
-            pPPattern
+            (pPPattern .>> ws)
             (skipString "=>" .>> ws)
             (between
                 (skipString "{" .>> ws)
@@ -500,25 +517,21 @@ let main argv =
     let pInputBind =
         //InputBind. Bind ::= CPattern "<-" Chan ;
         pipe3
-            pCPattern
+            (pCPattern .>> ws)
             (skipString "<-" .>> ws)
-            pChan
+            (pChan .>> ws)
             (fun a b c -> Bind.InputBind(a, c))
-
-    let pBindList =
-        //separator nonempty Bind ";" ;
-        sepBy1 pBind (skipString ";" .>> ws)
 
     //-- Channels
     let pCVar =
         //CVar.    Chan ::= Var ;
-        pVar |>>
+        (pVar .>> ws) |>>
         (fun x -> Chan.CVar(x))
 
     let pCQuote =
         //CQuote.  Chan ::= "@" Proc3 ;
         (skipString "@") >>.
-        pProc3 |>>
+        (pProc3 .>> ws) |>>
         (fun x -> Chan.CQuote(x))
 
     //-- Processes
@@ -529,12 +542,12 @@ let main argv =
 
     let pPValue =
         //PValue.  Proc4 ::= Value ;
-        pValue |>>
+        (pValue .>> ws) |>>
         (fun x -> Proc.PValue(x))
 
     let pPVar =
         //PVar.    Proc4 ::= Var ;
-        pVar |>>
+        (pVar .>> ws) |>>
         (fun x -> Proc.PVar(x))
 
     let pProc4 =
@@ -543,13 +556,13 @@ let main argv =
     let pPDrop = 
         //PDrop.   Proc3 ::= "*" Chan ;
         (skipString "*") >>.
-        pChan |>>
+        (pChan .>> ws) |>>
         (fun x -> Proc.PDrop(x))
 
     let pPInject =
         //PInject. Proc3 ::= "#" Chan ;
         (skipString "#") >>.
-        pChan |>>
+        (pChan .>> ws) |>>
         (fun x -> Proc.PInject(x))
 
     let pPLift =
@@ -560,7 +573,7 @@ let main argv =
             (between
                 (skipString "(" .>> ws)
                 (skipString ")" .>> ws)
-                ((opt pProc) .>> ws)
+                (pProcList .>> ws)
             )
             (fun a b c -> Proc.PLift(a, c))
 
@@ -574,7 +587,7 @@ let main argv =
             (between
                 (skipString "(" .>> ws)
                 (skipString ")" .>> ws)
-                ((opt pBind) .>> ws)
+                (pBindList .>> ws)
             )
             (between
                 (skipString "{" .>> ws)
@@ -589,7 +602,7 @@ let main argv =
         (between
             (skipString "{" .>> ws)
             (skipString "}" .>> ws)
-            ((opt pCBranch) .>> ws)
+            (pCBranchList .>> ws)
         ) |>>
         (fun x -> Proc.PChoice(x))
 
@@ -599,16 +612,16 @@ let main argv =
             (skipString "match" .>> ws)
             (pProc .>> ws)
             (skipString "with" .>> ws)
-            (opt pPMBranch)
+            (pPMBranchList .>> ws)
             (fun a b c d -> Proc.PMatch(b, d))
 
     let pPNew =
         //PNew.    Proc1 ::= "new" [Var] "in" Proc1 ;
         pipe4
             (skipString "new" .>> ws)
-            (opt pVar)
+            (pVarList .>> ws)
             (skipString "in" .>> ws)
-            pProc1
+            (pProc1 .>> ws)
             (fun a b c d -> Proc.PNew(b, d))
 
     let pPConstr =
@@ -618,35 +631,25 @@ let main argv =
             (between
                 (skipString "(" .>> ws)
                 (skipString ")" .>> ws)
-                ((opt pProc) .>> ws)
+                (pProcList .>> ws)
             )
             (fun a b -> Proc.PConstr(a, b))
 
     let pPPar =
         //PPar.    Proc  ::= Proc "|" Proc1 ;
-
-        pipe3
-            pProc
-            (skipString "|" .>> ws)
-            pProc1
-            (fun a b c -> Proc.PPar(a, c))
-
-    let pProcList = 
-        //separator nonempty Proc "," ;
-        sepBy1 pProc (skipString "," .>> ws)
-        //coercions Proc 4 ;
+        sepBy1 (pProc .>> ws) (skipString "|" .>> ws) |>>
+        (fun x -> Proc.PPar(x))
 
     //-- Top level contract declaration
     let pDContr =
         //DContr. Contr ::= "contract" Name "(" [CPattern] ")" "=" "{" Proc "}" ;
-        ws >>.
         (pipe5
             (skipString "contract" .>> ws)
-            pName
+            (pName .>> ws)
             (between
                 (skipString "(" .>> ws)
                 (skipString ")" .>> ws)
-                ((opt pCPatternList) .>> ws)
+                (pCPatternList .>> ws)
             )
             (skipString "=" .>> ws)
             (between
@@ -659,7 +662,6 @@ let main argv =
 
     let pContr =
         pDContr
-
     
     pPPatternRef :=
         choice [
@@ -683,6 +685,9 @@ let main argv =
             pPPtInject
         ]
 
+    pPPatternListRef :=
+        sepBy (pPPattern .>> ws) (skipString "," .>> ws)
+
     pCPatternRef :=
         choice [
             pCPtVar
@@ -694,6 +699,10 @@ let main argv =
             pVarPtVar
             pVarPtWild
         ]
+
+    pVarPatternListRef :=
+        // separator VarPattern "," ;
+        sepBy (pVarPattern .>> ws) (skipString "," .>> ws)
 
     pProcRef :=
         choice [
@@ -718,14 +727,23 @@ let main argv =
             pPInject
         ]
 
+    pProcListRef :=
+        //separator nonempty Proc "," ;
+        sepBy1 (pProc .>> ws) (skipString "," .>> ws)
+
     pBindRef :=
         pInputBind
+
+    pBindListRef :=
+        // separator nonempty Bind ";" ;
+        sepBy1 (pBind .>> ws) (skipString ";" .>> ws)
 
     pChanRef :=
         choice [
             pCVar
             pCQuote
         ]
+
 
     test pVarPattern "a ,b            " 
     test pPatternBind "x <- e"
@@ -749,5 +767,6 @@ let main argv =
     test pContr "contract Glen (a, b) = { #a }"
 
     test pContr "contract Glen (a, b) = { a!() }"
+    test pContr "contract Glen (a, b) = { a!( Nil ) }"
 
     0 // return an integer exit code
