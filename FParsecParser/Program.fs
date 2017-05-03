@@ -91,15 +91,18 @@ and Contr =
     | DContr of Name * CPattern list * Proc list
 
 let test p str =
+    printfn "%s" str
+    System.Diagnostics.Trace.WriteLine(str)
+
     match run p str with
     | Success(result, _, _)   -> printfn "Success: %A" result
     | Failure(errorMsg, _, _) -> printfn "Failure: %s" errorMsg
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
     fun stream ->
-        printfn "%A: Entering %s" stream.Position label
+        System.Diagnostics.Trace.WriteLine(sprintf "%A: Entering %s" stream.Position label)
         let reply = p stream
-        printfn "%A: Leaving %s (%A)" stream.Position label reply.Status
+        System.Diagnostics.Trace.WriteLine(sprintf "%A: Leaving %s (%A)" stream.Position label reply.Status)
         reply
 
 [<EntryPoint>]
@@ -312,7 +315,7 @@ let main argv =
 
     let pCPatternList =
         //separator CPattern "," ;
-        sepBy1 (pCPattern .>> ws) (skipString "," .>> ws)
+        sepBy (pCPattern .>> ws) (skipString "," .>> ws)
         <!> "CPatternList"
 
     //-- Process patterns
@@ -633,15 +636,15 @@ let main argv =
 
     let pPLift =
         //PLift.   Proc2 ::= Chan "!" "(" [Proc] ")" ;
-        pipe3
-            pChan
-            (skipString "!" .>> ws)
+        pipe2
+            //(attempt (pChan .>> (skipString "!" .>> ws)))
+            (pChan .>>? (skipString "!" .>> ws))
             (between
                 (skipString "(" .>> ws)
                 (skipString ")" .>> ws)
                 (pProcList .>> ws)
             )
-            (fun a b c -> Proc.PLift(a, c))
+            (fun a b -> Proc.PLift(a, b))
         <!> "PLift"
 
     let pProc2 = 
@@ -790,10 +793,10 @@ let main argv =
 
     pProcRef :=
         choice [
-            pProc4
-            pProc3
-            pProc2
             pProc1
+            pProc2
+            pProc3
+            pProc4
         ]
         <!> "Proc"
 
@@ -835,7 +838,36 @@ let main argv =
         ]
         <!> "Chan"
 
-    test pVarPattern "a ,b            " 
+
+    let c1 =
+        pstring "c1"
+        <!> "c1"
+
+    let c2 =
+        (pipe2
+            (pstring "c2")
+            (pstring "()")
+            (fun a b -> a))
+        <!> "c2"
+
+    let c3 =
+        pstring "c3"
+        <!> "c3"
+
+    let c4 =
+        pstring "c4"
+        <!> "c4"
+
+    let cc =
+        choice [
+            c1
+            c2
+            c3
+            c4
+        ]
+        <!> "cc"
+//(*
+    test pVarPatternList "a ,b            " 
     test pPatternBind "x <- e"
     test pContr "contract Glen () = { Nil }"
     test pContr "contract Glen (a) = { Nil }"
@@ -847,8 +879,13 @@ let main argv =
     test pCharLiteral "'a'"
     test pProc "'a'"
     test pProc4 "a"
+//    *)
+
+    //test cc "c4"
+
     test pProc "a"
 
+//(*
     test pContr "contract Glen (a, b) = { 'a'}"
     test pContr "contract Glen (a, b) = { 'a' }"
 
@@ -856,7 +893,8 @@ let main argv =
     test pContr "contract Glen (a, b) = { *a }"
     test pContr "contract Glen (a, b) = { #a }"
 
-    test pContr "contract Glen (a, b) = { a!() }"
+    test pContr "contract Glen (a, b) = { a!( 1 ) }"
     test pContr "contract Glen (a, b) = { a!( Nil ) }"
+    //*)
 
     0 // return an integer exit code
