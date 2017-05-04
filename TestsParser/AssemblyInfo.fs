@@ -10,9 +10,9 @@ open System.Runtime.InteropServices
 [<assembly: AssemblyTitle("TestsParser")>]
 [<assembly: AssemblyDescription("")>]
 [<assembly: AssemblyConfiguration("")>]
-[<assembly: AssemblyCompany("HP Inc.")>]
+[<assembly: AssemblyCompany("LP4-3, LLC")>]
 [<assembly: AssemblyProduct("TestsParser")>]
-[<assembly: AssemblyCopyright("Copyright © HP Inc. 2017")>]
+[<assembly: AssemblyCopyright("Copyright © LP4-3, LLC 2017")>]
 [<assembly: AssemblyTrademark("")>]
 [<assembly: AssemblyCulture("")>]
 

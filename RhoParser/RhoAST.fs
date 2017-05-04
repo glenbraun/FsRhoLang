@@ -83,5 +83,5 @@ and Proc =
     | PPar of Proc list
 
 and Contr =
-    | DContr of Name * CPattern list * Proc list
+    | DContr of Name * CPattern list * Proc
 

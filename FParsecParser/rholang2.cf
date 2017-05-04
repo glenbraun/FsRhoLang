@@ -1,5 +1,5 @@
 -- Top level contract declaration
-DContr. Contr ::= "contract" Name "(" [CPatterna] ")" "=" "{" Proc "}" ;
+DContr. Contr ::= "contract" Name "(" [CPattern] ")" "=" "{" Proc "}" ;
 
 -- Processes
 PNil.    Proc4 ::= "Nil" ;

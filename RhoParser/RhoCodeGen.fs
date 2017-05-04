@@ -7,7 +7,7 @@ type internal CodeWriter = string -> unit
 let internal ws = " "
 let internal nl = "\n"
 
-type internal CodeGenerator =
+type CodeGenerator =
     static member Generate(n:Rholang.AST.Var, cw:CodeWriter) =
         match n with
         | Var.VarValue(v) -> cw v
@@ -417,9 +417,13 @@ type internal CodeGenerator =
             cw nl
 
 
-let GenerateRholang (ast:Rholang.AST.Contr) (sw:System.IO.StreamWriter) =
+let GenerateRholang (ast:Rholang.AST.Contr) =
+    use sw = new System.IO.StringWriter()
+
     let cw (s:string) =
         sw.Write(s)
 
     CodeGenerator.Generate(ast, cw)
+    sw.Flush()
+    (sw.ToString())
     

@@ -633,7 +633,7 @@ let pDContr =
         (between
             (skipString "{" .>> ws)
             (skipString "}" .>> ws)
-            (pProcList .>> ws)
+            (pProc .>> ws)
         )
         (fun a b c d e -> Contr.DContr(b, c, e))
     )
