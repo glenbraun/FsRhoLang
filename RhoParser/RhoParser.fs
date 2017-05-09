@@ -8,9 +8,9 @@ open Rholang.AST
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
     fun stream ->
-        System.Diagnostics.Trace.WriteLine(sprintf "%A: Entering %s" stream.Position label)
+        //System.Diagnostics.Trace.WriteLine(sprintf "%A: Entering %s" stream.Position label)
         let reply = p stream
-        System.Diagnostics.Trace.WriteLine(sprintf "%A: Leaving %s (%A)" stream.Position label reply.Status)
+        //System.Diagnostics.Trace.WriteLine(sprintf "%A: Leaving %s (%A)" stream.Position label reply.Status)
         reply
 
 // Forward references

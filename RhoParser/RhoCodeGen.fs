@@ -5,14 +5,14 @@ open Rholang.AST
 type internal CodeWriter = string -> unit
 
 let internal ws = " "
-let internal nl = "\n"
+let internal nl = System.Environment.NewLine
 
 type CodeGenerator =
     static member Generate(n:Rholang.AST.Var, cw:CodeWriter) =
         match n with
         | Var.VarValue(v) -> cw v
 
-    static member Generate(nl:Rholang.AST.Var list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.Var list, cw:CodeWriter) =
         // separator nonempty Var "," ;
         let rec f (l:Var list) =
             match l with
@@ -22,7 +22,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw ", "
                 f r
-        f nl
+        f l
 
     static member Generate(n:Rholang.AST.Name, cw:CodeWriter) =
         match n with
@@ -35,8 +35,7 @@ type CodeGenerator =
             CodeGenerator.Generate(v, cw)
             cw " { "
             CodeGenerator.Generate(pl, cw)
-            cw " }"
-            cw nl
+            cw " } "
 
     static member Generate(n:PatternPatternMatch, cw:CodeWriter) =
         // PtBranch. PatternPatternMatch ::= PPattern "=>" "{" PPattern "}" ;
@@ -45,10 +44,9 @@ type CodeGenerator =
             CodeGenerator.Generate(p1, cw)
             cw " => {"
             CodeGenerator.Generate(p2, cw)
-            cw "}"
-            cw nl
+            cw "} "
 
-    static member Generate(nl:PatternPatternMatch list, cw:CodeWriter) =
+    static member Generate(l:PatternPatternMatch list, cw:CodeWriter) =
         // separator nonempty PatternPatternMatch "" ;
         let rec f (l:PatternPatternMatch list) =
             match l with
@@ -58,7 +56,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw "; "
                 f r
-        f nl
+        f l
 
     static member Generate(n:PatternBind, cw:CodeWriter) =
         // PtBind.   PatternBind ::= CPattern "<-" CPattern ;
@@ -68,7 +66,7 @@ type CodeGenerator =
             cw " <- "
             CodeGenerator.Generate(cp2, cw)
 
-    static member Generate(nl:PatternBind list, cw:CodeWriter) =
+    static member Generate(l:PatternBind list, cw:CodeWriter) =
         // separator nonempty PatternBind ";" ;
         let rec f (l:PatternBind list) =
             match l with
@@ -78,7 +76,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw "; "
                 f r
-        f nl
+        f l
         
     static member Generate(n:CPattern, cw:CodeWriter) =
         // CPtVar.    CPattern ::= VarPattern ;
@@ -90,7 +88,7 @@ type CodeGenerator =
             cw "@"
             CodeGenerator.Generate(pp, cw) 
 
-    static member Generate(nl:CPattern list, cw:CodeWriter) =
+    static member Generate(l:CPattern list, cw:CodeWriter) =
         // separator CPattern "," ;
         let rec f (l:CPattern list) =
             match l with
@@ -100,7 +98,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw ", "
                 f r
-        f nl
+        f l
 
     static member Generate(n:PPattern, cw:CodeWriter) =
         match n with
@@ -133,29 +131,25 @@ type CodeGenerator =
             CodeGenerator.Generate(pbl, cw)
             cw ") {"
             CodeGenerator.Generate(pp, cw)
-            cw "}"
-            cw nl
+            cw "} "
         | PPattern.PPtMatch(pp, ppml) ->
             //PPtMatch.  PPattern1 ::= "match" PPattern "with" [PatternPatternMatch] ;
             cw "match "
             CodeGenerator.Generate(pp, cw)
             cw " with "
             CodeGenerator.Generate(ppml, cw)
-            cw nl
         | PPattern.PPtNew(vpl, pp) ->
             //PPtNew.    PPattern1 ::= "new" [VarPattern] "in" PPattern1 ;
             cw "new "
             CodeGenerator.Generate(vpl, cw)
             cw " in "
             CodeGenerator.Generate(pp, cw)
-            cw nl
         | PPattern.PPtConstr(n, ppl) ->
             //PPtConstr. PPattern1 ::= Name "(" [PPattern] ")" ;
             CodeGenerator.Generate(n, cw)
             cw " ("
             CodeGenerator.Generate(ppl, cw)
             cw ")"
-            cw nl
         | PPattern.PPtPar(ppl) ->
             //PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
             let rec f (l:PPattern list) =
@@ -169,7 +163,7 @@ type CodeGenerator =
 
             f ppl
 
-    static member Generate(nl:Rholang.AST.PPattern list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.PPattern list, cw:CodeWriter) =
         // separator PPattern "," ;
         let rec f (l:PPattern list) =
             match l with
@@ -179,7 +173,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw ", "
                 f r
-        f nl
+        f l
 
     static member Generate(n:Rholang.AST.VarPattern, cw:CodeWriter) =
         match n with
@@ -190,7 +184,7 @@ type CodeGenerator =
             //VarPtWild. VarPattern ::= "_" ;
             cw "_"
 
-    static member Generate(nl:Rholang.AST.VarPattern list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.VarPattern list, cw:CodeWriter) =
         // separator VarPattern "," ;
         let rec f (l:VarPattern list) =
             match l with
@@ -200,7 +194,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw ", "
                 f r
-        f nl
+        f l
 
     static member Generate(n:Rholang.AST.Collect, cw:CodeWriter) =
         // CString. Collect ::= String ;
@@ -217,8 +211,7 @@ type CodeGenerator =
             CodeGenerator.Generate(v, cw)
             cw " { "
             CodeGenerator.Generate(pl, cw)
-            cw "}"
-            cw nl
+            cw "} "
 
     static member Generate(n:Rholang.AST.Entity, cw:CodeWriter) =
         match n with 
@@ -260,10 +253,9 @@ type CodeGenerator =
             CodeGenerator.Generate(bl, cw)
             cw "=> {"
             CodeGenerator.Generate(p, cw)
-            cw "}"
-            cw nl
+            cw "} "
 
-    static member Generate(nl:Rholang.AST.CBranch list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.CBranch list, cw:CodeWriter) =
         // separator nonempty CBranch "" ;
         let rec f (l:CBranch list) =
             match l with
@@ -273,7 +265,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw " "
                 f r
-        f nl    
+        f l    
 
     static member Generate(n:Rholang.AST.PMBranch, cw:CodeWriter) =
         // PatternMatch. PMBranch ::= PPattern "=>" "{" Proc "}" ;
@@ -282,10 +274,9 @@ type CodeGenerator =
             CodeGenerator.Generate(pp, cw)
             cw " => {"
             CodeGenerator.Generate(p, cw)
-            cw "}"
-            cw nl
+            cw "} "
 
-    static member Generate(nl:Rholang.AST.PMBranch list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.PMBranch list, cw:CodeWriter) =
         // separator nonempty PMBranch "" ; 
         let rec f (l:PMBranch list) =
             match l with
@@ -295,7 +286,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw " "
                 f r
-        f nl    
+        f l    
 
     static member Generate(n:Rholang.AST.Bind, cw:CodeWriter) =
         // InputBind. Bind ::= CPattern "<-" Chan ;
@@ -305,7 +296,7 @@ type CodeGenerator =
             cw " <- "
             CodeGenerator.Generate(c, cw)
 
-    static member Generate(nl:Rholang.AST.Bind list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.Bind list, cw:CodeWriter) =
         // separator nonempty Bind ";" ;
         let rec f (l:Bind list) =
             match l with
@@ -315,7 +306,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw "; "
                 f r
-        f nl
+        f l
 
     static member Generate(n:Rholang.AST.Chan, cw:CodeWriter) =
         match n with
@@ -350,48 +341,42 @@ type CodeGenerator =
             CodeGenerator.Generate(c, cw)
             cw "! ("
             CodeGenerator.Generate(pl, cw)
-            cw ")"
-            cw nl
+            cw ") "
         | Proc.PInput(bl, p) ->
             //PInput.  Proc1 ::= "for" "(" [Bind] ")" "{" Proc "}" ;
             cw "for ("
             CodeGenerator.Generate(bl, cw)
             cw ") {"
             CodeGenerator.Generate(p, cw)
-            cw "}"
-            cw nl
+            cw "} "
         | Proc.PChoice(cbl) ->
             //PChoice. Proc1 ::= "select" "{" [CBranch] "}" ;
             cw "select {"
             CodeGenerator.Generate(cbl, cw)
-            cw "}"
-            cw nl
+            cw "} "
         | Proc.PMatch(p, pmbl) ->
             //PMatch.  Proc1 ::= "match" Proc "with" [PMBranch] ;
             cw "match "
             CodeGenerator.Generate(p, cw)
             cw " with "
             CodeGenerator.Generate(pmbl, cw)
-            cw nl
         | Proc.PNew(vl, p) ->
             //PNew.    Proc1 ::= "new" [Var] "in" Proc1 ;
             cw "new "
             CodeGenerator.Generate(vl, cw)
             cw " in "
             CodeGenerator.Generate(p, cw)
-            cw nl
         | Proc.PConstr(n, pl) ->
             //PConstr. Proc1 ::= Name "(" [Proc] ")" ;
             CodeGenerator.Generate(n, cw)
             cw " ("
             CodeGenerator.Generate(pl, cw)
             cw ")"
-            cw nl
         | Proc.PPar(pl) ->
             //PPar.    Proc  ::= Proc "|" Proc1 ;
             CodeGenerator.Generate(pl, cw)
 
-    static member Generate(nl:Rholang.AST.Proc list, cw:CodeWriter) =
+    static member Generate(l:Rholang.AST.Proc list, cw:CodeWriter) =
         // separator nonempty Proc "," ;
         let rec f (l:Proc list) =
             match l with
@@ -401,7 +386,7 @@ type CodeGenerator =
                 CodeGenerator.Generate(p, cw)
                 cw "; "
                 f r
-        f nl
+        f l
         
     static member Generate(n:Rholang.AST.Contr, cw:CodeWriter) =
         // DContr. Contr ::= "contract" Name "(" [CPatterna] ")" "=" "{" Proc "}" ;
@@ -414,7 +399,6 @@ type CodeGenerator =
             cw ") = {"
             CodeGenerator.Generate(p, cw)
             cw "}"
-            cw nl
 
 
 let GenerateRholang (ast:Rholang.AST.Contr) =
