@@ -139,7 +139,7 @@ let pVPtStruct =
     //VPtStruct. ValPattern ::= Var "{" [PPattern] "}" ;
     attempt
         (pipe3
-            (attempt (pVar .>> (ws >>. (skipString "{"))))
+            (attempt (pVar .>> (ws >>. (skipString "{") .>> ws)))
             (pPPatternList .>> ws)
             (skipString "}" .>> ws)
             (fun a b c -> ValPattern.VPtStruct(a, b))
@@ -216,6 +216,9 @@ let pCPatternList =
 //-- Process patterns
 let pPPtVar =
     //PPtVar.    PPattern4 ::= VarPattern ;
+    (notFollowedBy 
+        ((pVarPattern .>> ws) .>> (skipString "!"))
+    ) >>.
     (pVarPattern .>> ws) |>>
     (fun x -> PPattern.PPtVar(x))
     <!> "PPtVar"
@@ -313,12 +316,6 @@ let pPPtConstr =
         )
         (fun a b -> PPattern.PPtConstr(a, b))
     <!> "PPtConstr"
-
-let pPPtPar =
-    //PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
-    sepBy1 (pPPattern .>> ws) (skipString "|" .>> ws) |>>
-    (fun x -> PPattern.PPtPar(x))
-    <!> "PPtPar"
 
 // -- Variable patterns
 let pVarPtVar =
@@ -632,14 +629,25 @@ let pContr =
     <!> "Contr"
 
 pPPatternRef :=
-    choice [
-        pPPattern4
-        pPPattern3
-        pPPattern2
-        pPPattern1
-    ]
+    // PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
+    sepBy1
+        (choice 
+            [
+                pPPattern4
+                pPPattern3
+                pPPattern2
+                pPPattern1
+            ] .>> ws
+        ) 
+        (skipString "|" .>> ws) |>>
+    (fun pl -> 
+        // If one Proc found, return it alone
+        // If multiple, return PPar
+        match pl with
+        | [x] -> x
+        | _ -> PPattern.PPtPar(pl))
     <!> "PPattern"
-
+    
 pPPattern1Ref :=
     choice [
         pPPtInput
@@ -681,7 +689,7 @@ pVarPatternListRef :=
     <!> "VarPatternList"
 
 pProcRef :=
-    //PPar.    Proc  ::= Proc "|" Proc1 ;
+    // PPar.    Proc  ::= Proc "|" Proc1 ;
     sepBy1 
         (choice 
             [
