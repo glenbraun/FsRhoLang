@@ -315,6 +315,7 @@ type CodeGenerator =
             CodeGenerator.Generate(v, cw)
         | Chan.CQuote(p) ->
             //CQuote.  Chan ::= "@" Proc3 ;
+            cw "@"
             CodeGenerator.Generate(p, cw)
             
     static member Generate(n:Rholang.AST.Proc, cw:CodeWriter) =

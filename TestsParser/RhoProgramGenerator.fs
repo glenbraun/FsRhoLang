@@ -2,29 +2,35 @@
 
 open Rholang.AST
 
-let GenerateList<'T when 'T : equality> (state: string list) (f: string list -> 'T seq) (nonempty: bool) =
-    let statename = (typeof<'T>).Name
-    let f1() = f ((statename + "-1") :: state)
-    let f2a() = f ((statename + "-2a") :: state)
-    let f2b() = f ((statename + "-2b") :: state)
+let GenerateList<'T when 'T : equality> (state: string list) (f: string list -> 'T seq) (minitems: int) =
+    match state with
+    | h :: t when List.contains h t ->
+        // Tail contains the head, cycle detected
+        Seq.empty
+    | _ ->
+        let statename = (typeof<'T>).Name
+        let f1() = f ((statename + "-1") :: state)
+        let f2a() = f ((statename + "-2a") :: state)
+        let f2b() = f ((statename + "-2b") :: state)
 
-    seq {
-        // Generate empty list
-        if (not nonempty) then
-            yield []
+        seq {
+            // Generate empty list
+            if (minitems <= 0) then
+                yield []
 
-        // Generate list with one element
-        for x in (f1()) do
-            yield [ x; ]
+            // Generate list with one element
+            if (minitems <= 1) then
+                for x in (f1()) do
+                    yield [ x; ]
 
-        // Generate list with two elements
-        (*
-        for x1 in (f2a()) do
-            for x2 in (f2b()) do
-                if x1 <> x2 then
-                    yield [ x1; x2; ]
-        *)
-    }
+            // Generate list with two elements
+            if (minitems <= 2) then ()
+                // Bug: Never terminates
+//                for x1 in (f2a()) do
+//                    for x2 in (f2b()) do
+//                        if x1 <> x2 then
+//                            yield [ x1; x2; ]
+        }
 
 
 let rec GenerateName (state:string list) : Name seq =
@@ -43,7 +49,7 @@ and GenerateVar (state:string list) : Var seq =
 
 and GenerateVarList (state:string list) : Var list seq =
     // separator nonempty Var "," ;
-    GenerateList<Var> state GenerateVar true
+    GenerateList<Var> state GenerateVar 1
 
 and GenerateValPattern (state:string list) : ValPattern seq =
     // VPtStruct. ValPattern ::= Var "{" [PPattern] "}" ;
@@ -78,7 +84,7 @@ and GeneratePatternPatternMatchList (state:string list) : PatternPatternMatch li
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<PatternPatternMatch> state GeneratePatternPatternMatch true
+        GenerateList<PatternPatternMatch> state GeneratePatternPatternMatch 1
 
 and GeneratePatternBind (state:string list) : PatternBind seq =
     //-- Bind pattern
@@ -101,7 +107,7 @@ and GeneratePatternBindList (state:string list) : PatternBind list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<PatternBind> state GeneratePatternBind true
+        GenerateList<PatternBind> state GeneratePatternBind 1
 
 and GenerateCPattern (state:string list) : CPattern seq =
     // -- Channel patterns
@@ -127,7 +133,7 @@ and GenerateCPatternList (state:string list) : CPattern list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<CPattern> state GenerateCPattern false
+        GenerateList<CPattern> state GenerateCPattern 0
 
 and GeneratePPattern (n:int) (state:string list) : PPattern seq =
     //-- Process patterns
@@ -185,9 +191,12 @@ and GeneratePPattern (n:int) (state:string list) : PPattern seq =
                     for ppl in (GeneratePPatternList ("PPattern.PPtConstr" :: state)) do
                         yield PPattern.PPtConstr(name, ppl)
 
-            //PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
-            for ppl in (GenerateList<PPattern> ("PPattern.PPtPar" :: state) (GeneratePPattern 0) true) do
-                yield PPattern.PPtPar(ppl)
+            if (n = 0) then
+                //PPtPar.    PPattern  ::= PPattern "|" PPattern1 ;
+                // Bug: Needs to generate more, but general approach with nested loops never terminated
+                yield PPattern.PPtPar([PPattern.PPtNil; PPattern.PPtNil])
+                //for ppl in (GenerateList<PPattern> ("PPattern.PPtPar" :: state) (GeneratePPattern 0) 2) do
+                //    yield PPattern.PPtPar(ppl)
         }
 
 and GeneratePPatternList (state:string list) : PPattern list seq =
@@ -197,7 +206,7 @@ and GeneratePPatternList (state:string list) : PPattern list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<PPattern> state (GeneratePPattern 0) false
+        GenerateList<PPattern> state (GeneratePPattern 0) 0
 
 and GenerateVarPattern (state:string list) : VarPattern seq =
     //-- Variable patterns
@@ -222,7 +231,7 @@ and GenerateVarPatternList (state:string list) : VarPattern list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<VarPattern> state GenerateVarPattern false
+        GenerateList<VarPattern> state GenerateVarPattern 0
 
 and GenerateCollect (state:string list) : Collect seq =
     //CString. Collect ::= String ;
@@ -314,7 +323,7 @@ and GenerateCBranchList (state:string list) : CBranch list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<CBranch> state GenerateCBranch true
+        GenerateList<CBranch> state GenerateCBranch 1
 
 and GeneratePMBranch (state:string list) : PMBranch seq =
     //-- Pattern match branches
@@ -337,7 +346,7 @@ and GeneratePMBranchList (state:string list) : PMBranch list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<PMBranch> state GeneratePMBranch true
+        GenerateList<PMBranch> state GeneratePMBranch 1
 
 and GenerateBind (state:string list) : Bind seq =
     //-- Variable binding
@@ -360,7 +369,7 @@ and GenerateBindList (state:string list) : Bind list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<Bind> state GenerateBind true
+        GenerateList<Bind> state GenerateBind 1
 
 and GenerateChan (state:string list) : Chan seq =
     //-- Channels
@@ -440,8 +449,11 @@ and GenerateProc (n:int) (state:string list) : Proc seq =
                         yield Proc.PConstr(name, pl)
 
             //PPar.    Proc  ::= Proc "|" Proc1 ;
-            for pl in (GenerateProcList 0 ("" :: state)) do
-                yield Proc.PPar(pl)
+            if (n = 0) then
+                // TODO:
+                // Need two or more
+                // Make this general or add more cases
+                yield Proc.PPar([Proc.PNil; Proc.PNil])
         }
 
 and GenerateProcList (n:int) (state:string list) : Proc list seq =
@@ -451,14 +463,14 @@ and GenerateProcList (n:int) (state:string list) : Proc list seq =
         // Tail contains the head, cycle detected
         Seq.empty
     | _ ->
-        GenerateList<Proc> state (GenerateProc 0) true
+        GenerateList<Proc> state (GenerateProc 0) 1
 
 let GenerateContr () : Contr seq =
     // DContr. Contr ::= "contract" Name "(" [CPattern] ")" "=" "{" Proc "}" ;
     seq {
         for name in (GenerateName [ "Contr.DContr"; ]) do
             for cpl in (GenerateCPatternList [ "Contr.DContr"; ]) do
-                let contract = Contr.DContr(name, cpl, Proc.PNil)
-                printfn "%A" contract
-                yield contract
+                for p in (GenerateProc 0 [ "Contr.DContr"; ]) do
+                    let contract = Contr.DContr(name, cpl, p)
+                    yield contract
     }

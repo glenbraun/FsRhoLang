@@ -21,6 +21,21 @@ let tests =
 [<EntryPoint>]
 let main argv = 
 //    let tests = Fuchu.TestCase ContractTests.``MultiCharName, one item CPattern.CPtQuote:PPattern.PPtConstr:Name.NameValue list, Nil Proc``
+    let pp = 
+        (between
+            (skipString "{" .>> ws)
+            (skipString "}" .>> ws)
+            (pProc4 .>> ws)
+        )
+
+    let code = "contract N () = {v { for (v <- v) {select {case v <- v=> {match Nil with v => {Nil} } } } } }"
+    match run pContr code with
+    | Success(result, _, _) ->
+        // if parse was successful, check that the AST returned equals what was sent in
+        ()
+    | Failure(errorMsg, _, _) ->
+        failwith errorMsg
+
 
     let contracts = GenerateContr()
     let ht = new System.Collections.Generic.HashSet<obj>()
@@ -28,15 +43,23 @@ let main argv =
     use fobj = System.IO.File.CreateText("..\\..\\programs.txt")
 
     for contract in contracts do
+        printfn "%A" contract
+
         if not (ht.Add(contract)) then
-            printfn "%A" contract
+            printfn "Duplicate %A" contract
 
         let code = GenerateRholang(contract)
-        fout.WriteLine code 
 
         fobj.WriteLine((sprintf "%A" contract).Replace("\r", "").Replace("\n",""))
 
-        if ht.Count >= 1000 then
+        let passed = TestHelper.RoundTripTest contract
+        fout.WriteLine (sprintf "%b:%s" passed code )
+        printfn "Passed: %b" (passed)
+        if not passed then
+            printfn "stop"
+
+
+        if ht.Count >= 100 then
             printfn "done"
 
     fout.Flush()

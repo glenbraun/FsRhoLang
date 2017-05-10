@@ -8,9 +8,9 @@ open Rholang.AST
 
 let (<!>) (p: Parser<_,_>) label : Parser<_,_> =
     fun stream ->
-        //System.Diagnostics.Trace.WriteLine(sprintf "%A: Entering %s" stream.Position label)
+        System.Diagnostics.Trace.WriteLine(sprintf "%A: Entering %s" stream.Position label)
         let reply = p stream
-        //System.Diagnostics.Trace.WriteLine(sprintf "%A: Leaving %s (%A)" stream.Position label reply.Status)
+        System.Diagnostics.Trace.WriteLine(sprintf "%A: Leaving %s (%A)" stream.Position label reply.Status)
         reply
 
 // Forward references
@@ -89,14 +89,6 @@ let pCharLiteral =
     )
     <!> "CharLiteral"
 
-let pIntegerLiteral =
-    pint32
-    <!> "IntegerLiteral"
-
-let pDoubleLiteral = 
-    pfloat
-    <!> "DoubleLiteral"
-
 // -- Names and variables
 let pKeyWords =
     (skipString "Nil" .>> ws) <|>
@@ -145,12 +137,11 @@ let pNameList =
 //-- Value patterns
 let pVPtStruct =
     //VPtStruct. ValPattern ::= Var "{" [PPattern] "}" ;
-    pipe4 
-        (pVar)
-        (skipString "{" .>> ws)
+    pipe3
+        (attempt (pVar .>> (ws >>. (skipString "{"))))
         (pPPatternList .>> ws)
         (skipString "}" .>> ws)
-        (fun a b c d -> ValPattern.VPtStruct(a, c))
+        (fun a b c -> ValPattern.VPtStruct(a, b))
     <!> "VPtStruct"
 
 let pValPattern =
@@ -394,21 +385,18 @@ let pEntity =
     <!> "Entity"
 
 //-- QBool.    Quantity ::= Boolean ;
-    
-let pQInt =
-    //QInt.     Quantity ::= Integer ;
-    (pIntegerLiteral .>> ws) |>>
-    (fun x -> Quantity.QInt(x))
-    <!> "QInt"
-
-let pQDouble =
-    //QDouble.  Quantity ::= Double ;
-    (pDoubleLiteral .>> ws) |>>
-    (fun x -> Quantity.QDouble(x))
-    <!> "QDouble"
-
 let pQuantity =
-    pQDouble <|> pQInt
+    let numberFormat =     
+            NumberLiteralOptions.AllowMinusSign
+        ||| NumberLiteralOptions.AllowFraction
+        ||| NumberLiteralOptions.AllowExponent
+    
+    numberLiteral numberFormat "number"
+    |>> fun nl ->
+            if nl.IsInteger then 
+                Quantity.QInt(Int32.Parse(nl.String))
+            else 
+                Quantity.QDouble(Double.Parse(nl.String))
     <!> "Quantity"
 
 let pVQuant =
@@ -518,7 +506,7 @@ let pPVar =
     <!> "PVar"
 
 let pProc4 =
-    pPVar <|> pPValue <|> pPNil
+    (notFollowedBy ((pPVar .>> ws) .>> skipString "{") >>. pPVar) <|> pPValue <|> pPNil
     <!> "Proc4"
 
 let pPDrop = 
