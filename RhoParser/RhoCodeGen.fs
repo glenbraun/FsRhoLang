@@ -375,7 +375,16 @@ type CodeGenerator =
             cw ")"
         | Proc.PPar(pl) ->
             //PPar.    Proc  ::= Proc "|" Proc1 ;
-            CodeGenerator.Generate(pl, cw)
+            let rec genlist (l : Proc list) = 
+                match l with
+                | [] -> ()
+                | [x] -> 
+                    CodeGenerator.Generate(x, cw)
+                | h :: t ->
+                    CodeGenerator.Generate(h, cw)
+                    cw " | "
+                    genlist t
+            genlist pl                    
 
     static member Generate(l:Rholang.AST.Proc list, cw:CodeWriter) =
         // separator nonempty Proc "," ;
@@ -412,3 +421,96 @@ let GenerateRholang (ast:Rholang.AST.Contr) =
     sw.Flush()
     (sw.ToString())
     
+
+
+
+open System.Reflection
+open Microsoft.FSharp.Reflection
+
+let internal PrintIndent (indent:int) (tw:System.IO.TextWriter) =
+    if (indent >= 0)  then 
+        tw.WriteLine()
+
+        for _ in [0 .. indent] do
+            tw.Write("    ")
+
+let rec internal PrintObject (ast: obj) (indent:int) (tw:System.IO.TextWriter) =
+    let t = ast.GetType()
+    let lt = typeof<Microsoft.FSharp.Collections.List<_>>
+
+    if ((t.IsGenericType) && ((t.GetGenericTypeDefinition()) = (lt.GetGenericTypeDefinition()))) then
+        PrintList (ast :?> System.Collections.Generic.IEnumerable<_>) indent tw
+    elif FSharpType.IsUnion(t) then
+        PrintUnion ast indent tw
+    elif FSharpType.IsTuple(t) then
+        PrintTuple ast indent tw
+    else
+        PrintIndent indent tw
+        fprintf tw "%s %A" (t.Name) ast
+
+and internal PrintObjects (fields: obj list) (indent:int) (tw:System.IO.TextWriter) =
+    match fields with
+    | [] -> ()
+    | [field] -> PrintObject field indent tw
+    | field :: t  -> 
+        PrintObject field indent tw
+        fprintf tw ","
+        PrintObjects t indent tw
+
+and internal PrintUnion (ast: obj) (indent:int) (tw:System.IO.TextWriter) =
+    let t = ast.GetType()
+
+    let union, fields = FSharpValue.GetUnionFields(ast, t)
+
+    PrintIndent indent tw
+    fprintf tw "%s.%s(" (t.Name) (union.Name)
+
+    if fields.Length = 0 then
+        fprintf tw ")"
+    else 
+        PrintObjects (List.ofArray fields) (indent+1) tw
+
+        PrintIndent indent tw
+        fprintf tw ")"
+
+and internal PrintTuple (ast: obj) (indent:int) (tw:System.IO.TextWriter) =
+    let fields = FSharpValue.GetTupleFields(ast)
+    let l = (List.ofArray fields)
+
+    match l with 
+    | [] -> 
+        PrintIndent indent tw
+        fprintf tw "()"
+    | _ -> 
+        PrintIndent indent tw
+        fprintf tw "("
+
+        PrintObjects l (indent+1) tw
+
+        PrintIndent indent tw
+        fprintf tw ")"
+
+and internal PrintList (ast: System.Collections.Generic.IEnumerable<_>) (indent:int) (tw:System.IO.TextWriter) =
+    let l = (List.ofSeq ast)
+
+    match l with 
+    | [] -> 
+        PrintIndent indent tw
+        fprintf tw "[]"
+    | _ -> 
+        PrintIndent indent tw
+        fprintf tw "["
+
+        PrintObjects l (indent+1) tw
+
+        PrintIndent indent tw
+        fprintf tw "]"
+
+let PrintAST (ast: obj) (tw:System.IO.TextWriter) =
+    let t = ast.GetType()
+
+    if FSharpType.IsUnion(t) then
+        PrintUnion ast -1 tw
+        tw.WriteLine()        
+    else
+        failwith "Must provide AST."

@@ -28,7 +28,7 @@ let main argv =
             (pProc4 .>> ws)
         )
 
-    let code = "contract N () = {v { for (v <- v) {select {case v <- v=> {match Nil with v => {Nil} } } } } }"
+    let code = "contract N () = {v { for (v <- v) {select {case v <- v=> {match Nil with v => {Nil | Nil} } } } } }"
     match run pContr code with
     | Success(result, _, _) ->
         // if parse was successful, check that the AST returned equals what was sent in
@@ -43,7 +43,7 @@ let main argv =
     use fobj = System.IO.File.CreateText("..\\..\\programs.txt")
 
     for contract in contracts do
-        printfn "%A" contract
+        PrintAST contract fobj
 
         if not (ht.Add(contract)) then
             printfn "Duplicate %A" contract
@@ -54,7 +54,8 @@ let main argv =
 
         let passed = TestHelper.RoundTripTest contract
         fout.WriteLine (sprintf "%b:%s" passed code )
-        printfn "Passed: %b" (passed)
+        printfn "%b:%s" passed code
+
         if not passed then
             printfn "stop"
 

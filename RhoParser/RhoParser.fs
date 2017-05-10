@@ -137,11 +137,14 @@ let pNameList =
 //-- Value patterns
 let pVPtStruct =
     //VPtStruct. ValPattern ::= Var "{" [PPattern] "}" ;
-    pipe3
-        (attempt (pVar .>> (ws >>. (skipString "{"))))
-        (pPPatternList .>> ws)
-        (skipString "}" .>> ws)
-        (fun a b c -> ValPattern.VPtStruct(a, b))
+    attempt
+        (pipe3
+            (attempt (pVar .>> (ws >>. (skipString "{"))))
+            (pPPatternList .>> ws)
+            (skipString "}" .>> ws)
+            (fun a b c -> ValPattern.VPtStruct(a, b))
+        ) |>>
+        (fun x -> x)
     <!> "VPtStruct"
 
 let pValPattern =
@@ -346,14 +349,17 @@ let pCollect =
 
 let pStructConstr =
     //StructConstr. Struct ::= Var "{" [Proc] "}" ;
-    pipe2
-        pVar
-        (between 
-            (skipString "{" .>> ws)
-            (skipString "}" .>> ws)
-            (pProcList .>> ws)
-        )
-        (fun a b -> Struct.StructConstr(a, b))
+    attempt 
+        (pipe2
+            (pVar .>> ws)
+            (between 
+                (skipString "{" .>> ws)
+                (skipString "}" .>> ws)
+                (pProcList .>> ws)
+            )
+            (fun a b -> Struct.StructConstr(a, b))
+        ) |>> 
+        (fun x -> x)
     <!> "StructConstr"
 
 let pStruct =
@@ -600,12 +606,6 @@ let pPConstr =
         (fun a b -> Proc.PConstr(a, b))
     <!> "PConstr"
 
-let pPPar =
-    //PPar.    Proc  ::= Proc "|" Proc1 ;
-    sepBy1 (pProc .>> ws) (skipString "|" .>> ws) |>>
-    (fun x -> Proc.PPar(x))
-    <!> "PPar"
-
 //-- Top level contract declaration
 let pDContr =
     //DContr. Contr ::= "contract" Name "(" [CPattern] ")" "=" "{" Proc "}" ;
@@ -681,14 +681,25 @@ pVarPatternListRef :=
     <!> "VarPatternList"
 
 pProcRef :=
-    choice [
-        pProc1
-        pProc2
-        pProc3
-        pProc4
-    ]
+    //PPar.    Proc  ::= Proc "|" Proc1 ;
+    sepBy1 
+        (choice 
+            [
+                pProc1
+                pProc2
+                pProc3
+                pProc4
+            ] .>> ws
+        ) 
+        (skipString "|" .>> ws) |>>
+    (fun pl -> 
+        // If one Proc found, return it alone
+        // If multiple, return PPar
+        match pl with
+        | [x] -> x
+        | _ -> Proc.PPar(pl))
     <!> "Proc"
-
+    
 pProc1Ref :=
     choice [
         pPInput
