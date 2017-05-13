@@ -270,6 +270,24 @@ and GenerateEntity (state:string list) : Entity seq =
             //ECollect. Entity   ::= Collect ;
             for c in (GenerateCollect ("Entity.ECollect" :: state)) do
                 yield Entity.ECollect(c)
+
+            //ETuple.   Entity   ::= "<" [Proc] ">" ;
+            for pl in (GenerateProcList 0 ("Entity.ETuple" :: state)) do
+                yield Entity.ETuple(pl)
+        }
+
+and GenerateRhoBool (state:string list) : RhoBool seq =
+    match state with
+    | h :: t when List.contains h t ->
+        // Tail contains the head, cycle detected
+        Seq.empty
+    | _ ->
+        seq {
+            //QTrue.    RhoBool  ::= "true" ;
+            yield RhoBool.QTrue
+
+            //QFalse.   RhoBool  ::= "false" 
+            yield RhoBool.QFalse
         }
 
 and GenerateQuantity (state:string list) : Quantity seq =
@@ -284,6 +302,10 @@ and GenerateQuantity (state:string list) : Quantity seq =
 
             //QDouble.  Quantity ::= Double ;
             yield Quantity.QDouble(101.2)
+
+            //QBool.    Quantity ::= RhoBool ;
+            for b in (GenerateRhoBool ("Quantity.QBool" :: state)) do
+                yield Quantity.QBool(b)
         }
 
 and GenerateValue (state:string list) : Value seq =
@@ -360,6 +382,12 @@ and GenerateBind (state:string list) : Bind seq =
             for cp in (GenerateCPattern ("Bind.InputBind" :: state)) do
                 for c in (GenerateChan ("Bind.InputBind" :: state)) do
                     yield Bind.InputBind(cp, c)
+
+            //CondInputBind. Bind ::= CPattern "<-" Chan "if" Proc ;
+            for cp in (GenerateCPattern ("Bind.CondInputBind" :: state)) do
+                for c in (GenerateChan ("Bind.CondInputBind" :: state)) do
+                    for p in (GenerateProc 0 ("Bind.CondInputBind" :: state)) do
+                        yield Bind.CondInputBind(cp, c, p)
         }
 
 and GenerateBindList (state:string list) : Bind list seq =
@@ -423,7 +451,22 @@ and GenerateProc (n:int) (state:string list) : Proc seq =
                     for pl in (GenerateProcList 0 ("Proc.PLift" :: state)) do
                         yield Proc.PLift(c, pl)
 
+
             if (n = 0 || n = 1) then
+                //PFoldL.  Proc1 ::= "sum" "(" Bind "/:" Bind ")" "{" Proc "}" ;
+                for b1 in (GenerateBind ("Proc.PFoldL-B1" :: state)) do
+                    for b2 in (GenerateBind ("Proc.PFoldL-B2" :: state)) do
+                        yield Proc.PFoldL(b1, b2, Proc.PNil)
+//                        for p in (GenerateProc 0 ("Proc.PFoldL" :: state)) do
+                            //yield Proc.PFoldL(b1, b2, p)
+
+                //PFoldR.  Proc1 ::= "total" "(" Bind ":\\" Bind ")" "{" Proc "}" ;
+                for b1 in (GenerateBind ("Proc.PFoldR-B1" :: state)) do
+                    for b2 in (GenerateBind ("Proc.PFoldR-B2" :: state)) do
+                        yield Proc.PFoldR(b1, b2, Proc.PNil)
+//                        for p in (GenerateProc 0 ("Proc.PFoldR" :: state)) do
+//                            yield Proc.PFoldR(b1, b2, p)
+
                 //PInput.  Proc1 ::= "for" "(" [Bind] ")" "{" Proc "}" ;
                 for bl in (GenerateBindList ("Proc.PInput" :: state)) do
                     for p in (GenerateProc 0 ("Proc.PInput" :: state)) do

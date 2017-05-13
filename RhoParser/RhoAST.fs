@@ -8,6 +8,12 @@ and Name =
 
 and ValPattern =
     | VPtStruct of Var * PPattern list
+    | VPtTuple of PPattern list
+    | VPtTrue
+    | VPtFalse
+    | VPtInt of int
+    | VPtDbl of float
+    | VPtStr of string
 
 and PatternPatternMatch =
     | PtBranch of PPattern * PPattern 
@@ -18,6 +24,7 @@ and PatternBind =
 and CPattern =
     | CPtVar of VarPattern
     | CPtQuote of PPattern
+    | CValPtrn of ValPattern
 
 and PPattern =
     | PPtVar of VarPattern
@@ -46,8 +53,14 @@ and Entity =
     | EChar of char
     | EStruct of Struct
     | ECollect of Collect
+    | ETuple of Proc list
+
+and RhoBool =
+    | QTrue
+    | QFalse
 
 and Quantity =
+    | QBool of RhoBool
     | QInt of int
     | QDouble of float
 
@@ -63,6 +76,7 @@ and PMBranch =
 
 and Bind =
     | InputBind of CPattern * Chan
+    | CondInputBind of CPattern * Chan * Proc
 
 and Chan =
     | CVar of Var
@@ -75,6 +89,8 @@ and Proc =
     | PDrop of Chan
     | PInject of Chan
     | PLift of Chan * Proc list
+    | PFoldL of Bind * Bind * Proc
+    | PFoldR of Bind * Bind * Proc
     | PInput of Bind list * Proc
     | PChoice of CBranch list
     | PMatch of Proc * PMBranch list

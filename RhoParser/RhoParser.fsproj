@@ -54,6 +54,7 @@
     <Compile Include="RhoAST.fs" />
     <Compile Include="RhoCodeGen.fs" />
     <Compile Include="RhoParser.fs" />
+    <None Include="rholang.cf" />
     <None Include="rholang2.cf" />
     <Content Include="packages.config" />
     <Content Include="App.config" />

@@ -31,7 +31,7 @@ let pChan, pChanRef = createParserForwardedToRef<Chan, unit>()
 
 let ws =
     unicodeSpaces
-    <!> "ws"
+    //<!> "ws"
 
 // -- Literals
 let pStringLiteral =
@@ -99,9 +99,12 @@ let pKeyWords =
     (skipString "with" .>> ws) <|>
     (skipString "new" .>> ws) <|>
     (skipString "case" .>> ws) <|>
+    (skipString "total" .>> ws) <|>
+    (skipString "sum" .>> ws) <|>
     (skipString "true" .>> ws) <|>
     (skipString "false" .>> ws) <|>
-    (skipString "in" .>> ws)
+    (skipString "in" .>> ws) <|>
+    (skipString "if" .>> ws)
     <!> "KeyWords"
 
 let pVar = 
@@ -147,9 +150,68 @@ let pVPtStruct =
         (fun x -> x)
     <!> "VPtStruct"
 
+let pVPtTuple =
+    // VPtTuple. ValPattern ::= "<" [PPattern] ">" ;
+    between 
+        (skipString "<" .>> ws)
+        (skipString ">" .>> ws)
+        pPPatternList
+    |>>
+    (fun x -> ValPattern.VPtTuple(x))
+    <!> "VPtTuple"
+
+let pVPtTrue : Parser<ValPattern, unit> =
+    //VPtTrue. ValPattern ::= "true" ;
+    (skipString "true" .>> ws) |>>
+    (fun x -> ValPattern.VPtTrue)
+    <!> "VPtTrue"
+
+let pVPtFalse : Parser<ValPattern, unit> =
+    //VPtFalse. ValPattern ::= "false" ;
+    (skipString "false" .>> ws) |>>
+    (fun x -> ValPattern.VPtFalse)
+    <!> "VPtFalse"
+
+let pVPtIntOrVPtDbl =
+    //VPtInt. ValPattern ::= Integer ;
+    //VPtDbl. ValPattern ::= Double ;
+    let numberFormat =     
+            NumberLiteralOptions.AllowMinusSign
+        ||| NumberLiteralOptions.AllowFraction
+        ||| NumberLiteralOptions.AllowExponent
+    
+    numberLiteral numberFormat "number"
+    |>> fun nl ->
+            if nl.IsInteger then 
+                ValPattern.VPtInt(Int32.Parse(nl.String))
+            else 
+                ValPattern.VPtDbl(Double.Parse(nl.String))
+    <!> "VPtIntOrVPtDbl"
+
+let pVPtStr =
+    //VPtStr. ValPattern ::= String ;
+    (pStringLiteral .>> ws) |>>
+    (fun x -> ValPattern.VPtStr(x))
+    <!> "VPtStr"
+
 let pValPattern =
-    pVPtStruct
+    choice 
+        [
+            pVPtStruct
+            pVPtTuple
+            pVPtTrue
+            pVPtFalse
+            pVPtIntOrVPtDbl
+            pVPtStr
+        ]
     <!> "ValPattern"
+
+let pValPatternList =
+    // separator nonempty ValPattern "," ;
+    sepBy1
+        (pValPattern .>> ws)
+        (skipString "," .>> ws)
+    <!> "ValPatternList"
 
 //-- Pattern match branch pattern
 let pPtBranch =
@@ -207,6 +269,12 @@ let pCPtQuote =
         (pPPattern3 .>> ws)
         (fun a b -> CPattern.CPtQuote(b))
     <!> "CPtQuote"
+
+let pCValPtrn =
+    // CValPtrn.  CPattern ::= ValPattern ;
+    pValPattern |>>
+    (fun x -> CPattern.CValPtrn(x))
+    <!> "CValPtrn"
 
 let pCPatternList =
     //separator CPattern "," ;
@@ -383,12 +451,44 @@ let pECollect =
     (fun x -> Entity.ECollect(x))
     <!> "ECollect"
 
+let pETuple =
+    //ETuple.   Entity   ::= "<" [Proc] ">" ;
+    between
+        (skipString "<" .>> ws)
+        (skipString ">" .>> ws)
+        pProcList
+    |>> (fun x -> Entity.ETuple(x))
+    <!> "ETuple"
+
 let pEntity =
-    pECollect <|> pEStruct <|> pEChar
+    pETuple <|> pECollect <|> pEStruct <|> pEChar
     <!> "Entity"
 
-//-- QBool.    Quantity ::= Boolean ;
-let pQuantity =
+let pQTrue =
+    //QTrue.    RhoBool  ::= "true" ;
+    (skipString "true" .>> ws)
+    |>> (fun x -> RhoBool.QTrue)
+    <!> "QTrue"
+
+let pQFalse =
+    //QFalse.   RhoBool  ::= "false" ;
+    (skipString "false" .>> ws)
+    |>> (fun x -> RhoBool.QFalse)
+    <!> "QFalse"
+
+let pRhoBool =
+    pQTrue <|> pQFalse
+    <!> "RhoBool"
+
+let pQBool =
+    //-- QBool.    Quantity ::= Boolean ;
+    pRhoBool |>>
+    (fun x -> Quantity.QBool(x))
+    <!> "QBool"
+
+let pQIntOrQDouble =
+    //QInt.     Quantity ::= Integer ;
+    //QDouble.  Quantity ::= Double ;
     let numberFormat =     
             NumberLiteralOptions.AllowMinusSign
         ||| NumberLiteralOptions.AllowFraction
@@ -400,7 +500,10 @@ let pQuantity =
                 Quantity.QInt(Int32.Parse(nl.String))
             else 
                 Quantity.QDouble(Double.Parse(nl.String))
-    <!> "Quantity"
+    <!> "QIntOrQDouble"
+
+let pQuantity =
+    pQBool <|> pQIntOrQDouble
 
 let pVQuant =
     //VQuant.   Value    ::= Quantity ;
@@ -468,11 +571,21 @@ let pPMBranchList =
 //-- Variable binding
 let pInputBind =
     //InputBind. Bind ::= CPattern "<-" Chan ;
-    pipe3
+    //CondInputBind. Bind ::= CPattern "<-" Chan "if" Proc ;
+    pipe4
         (pCPattern .>> ws)
         (skipString "<-" .>> ws)
         (pChan .>> ws)
-        (fun a b c -> Bind.InputBind(a, c))
+        (opt
+            (
+             (skipString "if" .>> ws) >>.
+             (pProc .>> ws)
+            )
+        )
+        (fun a b c d -> 
+            match d with
+            | Some(p) -> Bind.CondInputBind(a, c, p)
+            | None -> Bind.InputBind(a, c))
     <!> "InputBind"
 
 //-- Channels
@@ -542,6 +655,52 @@ let pPLift =
 let pProc2 = 
     pPLift
     <!> "Proc2"
+
+let pPFoldL =
+    //PFoldL.  Proc1 ::= "sum" "(" Bind "/:" Bind ")" "{" Proc "}" ;
+    pipe3
+        (skipString "sum" .>> ws)
+        (between
+            (skipString "(" .>> ws)
+            (skipString ")" .>> ws)
+            (
+                pipe3
+                    (pBind .>> ws)
+                    (skipString "/:" .>> ws)
+                    (pBind .>> ws)
+                    (fun a b c -> (a, c))
+            )
+        )
+        (between
+            (skipString "{" .>> ws)
+            (skipString "}" .>> ws)
+            pProc
+        )
+        (fun a (b, c) d -> Proc.PFoldL(b, c, d))
+        <!> "PFoldL"
+
+let pPFoldR =
+    //PFoldR.  Proc1 ::= "total" "(" Bind ":\\" Bind ")" "{" Proc "}" ;
+    pipe3
+        (skipString "total" .>> ws)
+        (between
+            (skipString "(" .>> ws)
+            (skipString ")" .>> ws)
+            (
+                pipe3
+                    (pBind .>> ws)
+                    (skipString "/:" .>> ws)
+                    (pBind .>> ws)
+                    (fun a b c -> (a, c))
+            )
+        )
+        (between
+            (skipString "{" .>> ws)
+            (skipString "}" .>> ws)
+            pProc
+        )
+        (fun a (b, c) d -> Proc.PFoldR(b, c, d))
+        <!> "PFoldR"
 
 let pPInput =
     //PInput.  Proc1 ::= "for" "(" [Bind] ")" "{" Proc "}" ;
@@ -710,6 +869,8 @@ pProcRef :=
     
 pProc1Ref :=
     choice [
+        pPFoldL
+        pPFoldR
         pPInput
         pPChoice
         pPMatch

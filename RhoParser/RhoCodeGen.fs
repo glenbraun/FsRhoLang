@@ -36,6 +36,20 @@ type CodeGenerator =
             cw " { "
             CodeGenerator.Generate(pl, cw)
             cw " } "
+        | ValPattern.VPtTuple(pl) ->
+            cw " < "
+            CodeGenerator.Generate(pl, cw)
+            cw " > "
+        | ValPattern.VPtTrue ->
+            cw " true "
+        | ValPattern.VPtFalse ->
+            cw " false "
+        | ValPattern.VPtInt(v) ->
+            cw (sprintf " %d " v)
+        | ValPattern.VPtDbl(v) ->
+            cw (sprintf " %f " v)
+        | ValPattern.VPtStr(v) ->
+            cw (sprintf " \"%s\" " (v.Replace("\"", "")))
 
     static member Generate(n:PatternPatternMatch, cw:CodeWriter) =
         // PtBranch. PatternPatternMatch ::= PPattern "=>" "{" PPattern "}" ;
@@ -87,6 +101,8 @@ type CodeGenerator =
         | CPattern.CPtQuote(pp) ->
             cw "@"
             CodeGenerator.Generate(pp, cw) 
+        | CPattern.CValPtrn(vp) ->  
+            CodeGenerator.Generate(vp, cw)
 
     static member Generate(l:CPattern list, cw:CodeWriter) =
         // separator CPattern "," ;
@@ -226,6 +242,11 @@ type CodeGenerator =
         | Entity.ECollect(c) ->
             //ECollect. Entity   ::= Collect ;
             CodeGenerator.Generate(c, cw)
+        | Entity.ETuple(ppl) ->
+            // VPtTuple. ValPattern ::= "<" [PPattern] ">" ;
+            cw " < "
+            CodeGenerator.Generate(ppl, cw)
+            cw " > "
 
     static member Generate(n:Rholang.AST.Quantity, cw:CodeWriter) =
         match n with 
@@ -235,6 +256,16 @@ type CodeGenerator =
         | Quantity.QDouble(d) ->
             //QDouble.  Quantity ::= Double ;
             cw (d.ToString())
+        | Quantity.QBool(b) ->
+            //QBool.    Quantity ::= RhoBool ;
+            CodeGenerator.Generate(b, cw)            
+
+    static member Generate(n:Rholang.AST.RhoBool, cw:CodeWriter) =
+        match n with
+        | RhoBool.QTrue ->
+            cw " true "
+        | RhoBool.QFalse ->
+            cw " false "
 
     static member Generate(n:Rholang.AST.Value, cw:CodeWriter) =
         match n with
@@ -295,6 +326,12 @@ type CodeGenerator =
             CodeGenerator.Generate(cp, cw)
             cw " <- "
             CodeGenerator.Generate(c, cw)
+        | Bind.CondInputBind(cp, c, p) ->
+            CodeGenerator.Generate(cp, cw)
+            cw " <- "
+            CodeGenerator.Generate(c, cw)
+            cw " if "            
+            CodeGenerator.Generate(p, cw)
 
     static member Generate(l:Rholang.AST.Bind list, cw:CodeWriter) =
         // separator nonempty Bind ";" ;
@@ -343,6 +380,24 @@ type CodeGenerator =
             cw "! ("
             CodeGenerator.Generate(pl, cw)
             cw ") "
+        | Proc.PFoldL(b1, b2, p) ->
+            //PFoldL.  Proc1 ::= "sum" "(" Bind "/:" Bind ")" "{" Proc "}" ;
+            cw "sum ("
+            CodeGenerator.Generate(b1, cw)
+            cw " /: "
+            CodeGenerator.Generate(b2, cw)
+            cw " ) { "
+            CodeGenerator.Generate(p, cw)
+            cw " }"
+        | Proc.PFoldR(b1, b2, p) ->
+            //PFoldR.  Proc1 ::= "total" "(" Bind ":\\" Bind ")" "{" Proc "}" ;
+            cw "total ("
+            CodeGenerator.Generate(b1, cw)
+            cw " /: "
+            CodeGenerator.Generate(b2, cw)
+            cw " ) { "
+            CodeGenerator.Generate(p, cw)
+            cw " }"            
         | Proc.PInput(bl, p) ->
             //PInput.  Proc1 ::= "for" "(" [Bind] ")" "{" Proc "}" ;
             cw "for ("
